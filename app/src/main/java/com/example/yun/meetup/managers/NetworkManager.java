@@ -1,23 +1,28 @@
 package com.example.yun.meetup.managers;
 
-import android.text.Html;
+import android.content.SharedPreferences;
 
 import com.example.yun.meetup.models.APIResult;
 import com.example.yun.meetup.models.Event;
+import com.example.yun.meetup.models.EventList;
 import com.example.yun.meetup.models.UserInfo;
 import com.example.yun.meetup.providers.ApiProvider;
 import com.example.yun.meetup.requests.CreateEventRequest;
+import com.example.yun.meetup.requests.EventListRequest;
 import com.example.yun.meetup.requests.LoginRequest;
 import com.example.yun.meetup.requests.RegistrationRequest;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.reflect.TypeToken;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.util.ArrayList;
+import java.util.List;
 
 public class NetworkManager {
 
@@ -149,6 +154,71 @@ public class NetworkManager {
         }
 
         return new APIResult(false, "Fatal error, please contact the admin staff!", null);
+    }
+
+    public APIResult listEvents(EventListRequest eventListRequest) {
+
+        GsonBuilder builder = new GsonBuilder();
+        Gson gson = builder.create();
+        String json = gson.toJson(eventListRequest);
+        ArrayList<Event> listOfEvents = new ArrayList<Event>();
+        Event ev = null;
+        UserInfo ui = new UserInfo();
+        ui.setName("Test");
+
+
+        APIResult apiResult = new APIResult(false, "Listing of Events failed: Please try again", null);
+
+        try {
+
+            String response = apiProvider.sendRequest("/host_event", "POST", json);
+
+
+            JSONObject responseJSON = new JSONObject(response);
+
+
+            if (!responseJSON.isNull("data")) {
+
+                JSONArray responseJSONArray = responseJSON.optJSONArray("data");
+
+                //
+                //listOfEvents = gson.fromJson(responseJSONArray.toString(),new TypeToken<List<Event>>(){}.getType());
+
+                //BELOW METHOD FROM: http://techlovejump.com/android-poplulating-list-view-from-json/
+                for (int i = 0; i < responseJSONArray.length(); i++) {
+                    JSONObject jsonEventObject = responseJSONArray.getJSONObject(i);
+                    String _id = jsonEventObject.optString("_id");
+                    String host_id = jsonEventObject.optString("host_id");
+                    String title = jsonEventObject.optString("title");
+                    String address = jsonEventObject.optString("address", "default");
+                    String date = jsonEventObject.optString("date", "01/01/2020");
+
+
+                    ev = new Event();
+                    ev.set_id(_id);
+                    ev.setHost_id(host_id);
+                    ev.setTitle(title);
+                    ev.setUserInfo(ui);
+                    ev.setAddress(address);
+
+
+                    listOfEvents.add(ev);
+
+
+                }
+
+
+                // UserInfo userInfo = gson.fromJson(responseJSON.getJSONObject("data").toString(), UserInfo.class);
+
+                apiResult = new APIResult(true, APIResult.RESULT_SUCCESS, listOfEvents);
+            } else if (!responseJSON.isNull("err") && responseJSON.getString("err").equals("Data not found in database")) {
+                apiResult = new APIResult(false, "There are no events from this host ID", null);
+            }
+        } catch (JSONException | IOException e) {
+            e.printStackTrace();
+        }
+
+        return apiResult;
     }
 
 
